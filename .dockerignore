@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.venv/
+audio/
+transcripts/
+models/
+bin/
+*.log

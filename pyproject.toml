@@ -1,0 +1,16 @@
+[project]
+name = "whisper-txt"
+version = "0.2.0"
+description = "Transcritor de vídeos para texto puro (.txt) com aceleração universal Vulkan"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "imageio-ffmpeg>=0.7.0",
+    "textual>=0.80.0",
+]
+
+[project.scripts]
+whisper-txt = "cli:main"
+
+[tool.uv]
+package = false

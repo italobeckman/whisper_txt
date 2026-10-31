@@ -1,0 +1,77 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# C extensions
+*.so
+
+# Ambientes Virtuais (uv / pip / venv)
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Whisper Models (pesos pesados de IA em GB)
+models/
+
+# Binários do Whisper Vulkan e DLLs
+bin/
+*.exe
+*.dll
+
+# Pastas de Mídia e Saídas de Transcrição
+audio/
+transcripts/
+videos/
+
+# Arquivos de Vídeo e Áudio Avulsos
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.avi
+*.flv
+*.wmv
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.ogg
+
+# Arquivos Temporários de Extração
+whisper_txt_*
+*.tmp
+
+# Logs
+*.log
+
+# Caches de Linters e Testes
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# IDEs e Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Sistema Operacional (Windows / macOS)
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Artefatos do Assistente / Agentes
+.superpowers/
