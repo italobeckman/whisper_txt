@@ -110,6 +110,7 @@ uv run cli.py extract -i "aula.mp4" -o "audio_aula.wav"
 
 # 8. Executar pipeline e manter o arquivo WAV intermediário
 uv run cli.py run -i "aula.mp4" --keep-audio
+```
 
 ---
 
@@ -147,7 +148,7 @@ Teste realizado em gravação real de reunião com 58m 55s (3.535s) em GPU NVIDI
 ## Estrutura do Projeto
 
 ```
-meet_processor/
+whisper-txt/
 ├── cli.py                  # Ponto de entrada da CLI (transcribe, extract, run, tui)
 ├── config.py               # Configurações do motor Vulkan, modelos e caminhos
 ├── pyproject.toml          # Dependências do projeto (uv)
