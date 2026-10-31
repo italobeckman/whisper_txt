@@ -57,35 +57,59 @@ uv run cli.py tui "C:\Aulas"
 
 ### 2. Linha de Comando (`cli.py`)
 
-#### Transcrever (`transcribe`)
+A CLI é dividida em 3 subcomandos principais com comportamentos específicos:
+
+- **`transcribe`:** Converte vídeo ou áudio diretamente para texto puro (`.txt`). Extrai a faixa para áudio temporário na memória/disco e a apaga ao final.
+- **`extract`:** Extrai exclusivamente a faixa de áudio do vídeo para arquivo WAV 16kHz mono PCM (sem executar o modelo de transcrição).
+- **`run`:** Executa o pipeline completo permitindo preservar permanentemente o arquivo de áudio WAV gerado com a flag `--keep-audio`.
+
+#### Comportamento Padrão de Saída e Retomada (Batch Resume)
+- **Local de Saída:** O arquivo `.txt` é gerado por padrão **no mesmo diretório do arquivo original** com o mesmo nome base (ex: `aula.mp4` -> `aula.txt`). Caso queira centralizar em outra pasta, use `-o / --output`.
+- **Pulo Automático de Arquivos:** Se o arquivo `.txt` correspondente já existir, o processamento **pula o arquivo automaticamente** para economizar GPU.
+- **Forçar Regravação:** Para sobrescrever transcrições já existentes, utilize a flag `-f` / `--overwrite`.
+
+#### Referência de Parâmetros (`transcribe`)
+
+| Parâmetro | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `-i, --input` | Caminho | *(Obrigatório)* | Arquivo de vídeo/áudio ou diretório |
+| `-o, --output` | Caminho | Mesma pasta | Pasta de destino para o `.txt` |
+| `-q, --quality` | Opção | `fast` | Nível de precisão (`fast`, `balanced`, `max`) |
+| `-l, --language` | Texto | `pt` | Idioma falado (`pt`, `en`, `es`, ou `auto` para autodetectar) |
+| `-t, --track` | Inteiro | `0` | Índice da trilha de áudio em vídeos multi-canal (OBS) |
+| `-f, --overwrite` | Flag | `False` | Força sobrescrever transcrições existentes |
+| `-r, --recursive` | Flag | `False` | Busca recursiva em subpastas caso a entrada seja um diretório |
+| `--prompt` | Texto | `None` | Termos técnicos, siglas e nomes próprios para guiar o Whisper |
+| `--threads` | Inteiro | `8` | Quantidade de threads de CPU utilizadas no processamento |
+| `--model` | Texto | *(Do preset)* | Sobrescreve o arquivo GGML (ex: `ggml-large-v3-turbo-q5_0.bin`) |
+| `--device` | Inteiro | `0` | ID da GPU Vulkan em sistemas com múltiplas placas de vídeo |
+
+#### Exemplos Práticos de Uso
+
 ```bash
-# Transcrever vídeo (preset padrão: fast)
+# 1. Transcrever um vídeo individual com configuração padrão
 uv run cli.py transcribe -i "aula.mp4"
 
-# Escolher preset (fast, balanced, max)
-uv run cli.py transcribe -i "aula.mp4" -q balanced
+# 2. Processar uma pasta inteira recursivamente com retomada automática (pula os já transcritos)
+uv run cli.py transcribe -i "./gravacoes" -r
 
-# Especificar idioma e trilha de áudio
-uv run cli.py transcribe -i "reuniao.mkv" -l pt -t 1
+# 3. Forçar regravação de uma pasta completa
+uv run cli.py transcribe -i "./gravacoes" -r -f
 
-# Adicionar vocabulário / prompt de contexto
-uv run cli.py transcribe -i "aula.mp4" --prompt "PyTorch, Docker, Kubernetes"
+# 4. Gravação com áudio separado (ex: faixa 1 do microfone em gravação OBS)
+uv run cli.py transcribe -i "podcast.mkv" -t 1
 
-# Transcrever pasta inteira recursivamente
-uv run cli.py transcribe -i "./videos" -r
-```
+# 5. Injetar vocabulário técnico e autodetectar idioma
+uv run cli.py transcribe -i "talk.mp4" -l auto --prompt "Kubernetes, Docker, CI/CD, DevOps"
 
-#### Extrair Áudio (`extract`)
-```bash
-# Extrai áudio em WAV mono 16kHz PCM
-uv run cli.py extract -i "aula.mp4" -o "audio.wav"
-```
+# 6. Salvar saída em pasta customizada
+uv run cli.py transcribe -i "aula.mp4" -o "./transcricoes"
 
-#### Pipeline Completo (`run`)
-```bash
-# Extrai e transcreve, mantendo o arquivo de áudio temporário
+# 7. Extrair apenas áudio WAV mono 16kHz (sem transcrever)
+uv run cli.py extract -i "aula.mp4" -o "audio_aula.wav"
+
+# 8. Executar pipeline e manter o arquivo WAV intermediário
 uv run cli.py run -i "aula.mp4" --keep-audio
-```
 
 ---
 
