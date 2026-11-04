@@ -148,6 +148,11 @@ class Transcriber:
         )
 
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        env = os.environ.copy()
+        if sys.platform != "win32":
+            bin_dir = str(cli_path.parent)
+            env["LD_LIBRARY_PATH"] = f"{bin_dir}:{env.get('LD_LIBRARY_PATH', '')}".rstrip(":")
+
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -156,6 +161,7 @@ class Transcriber:
             encoding="utf-8",
             errors="replace",
             creationflags=creationflags,
+            env=env,
         )
 
         try:

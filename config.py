@@ -1,7 +1,9 @@
 """Configuração central do pipeline de transcrição de vídeos via Vulkan."""
+import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -17,6 +19,7 @@ LANGUAGE = "pt"
 DEFAULT_PRESET = "fast"
 
 VULKAN_RELEASE_URL = "https://github.com/jerryshell/whisper.cpp-windows-vulkan-bin/releases/download/v1.0.0/whisper.cpp-windows-vulkan.zip"
+LINUX_RELEASE_URL = "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-ubuntu-x64.tar.gz"
 
 MODEL_URLS = {
     "ggml-large-v3-turbo-q5_0.bin": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
@@ -41,6 +44,8 @@ def get_whisper_cli() -> Path:
     cli_path = BIN_FOLDER / exe_name
 
     if cli_path.exists():
+        if sys.platform != "win32" and not os.access(cli_path, os.X_OK):
+            os.chmod(cli_path, 0o755)
         return cli_path
 
     # Tenta localizar no PATH do sistema
@@ -50,7 +55,7 @@ def get_whisper_cli() -> Path:
 
     # Download automático do pacote Vulkan pré-compilado para Windows
     if sys.platform == "win32":
-        print("[Whisper TXT] Baixando binário universal whisper-cli (Vulkan)...")
+        print("[Whisper TXT] Baixando binário universal whisper-cli (Vulkan para Windows)...")
         zip_tmp = BIN_FOLDER / "whisper_vulkan.zip.tmp"
         zip_path = BIN_FOLDER / "whisper_vulkan.zip"
         try:
@@ -68,9 +73,46 @@ def get_whisper_cli() -> Path:
             print("[Whisper TXT] Motor Vulkan instalado com sucesso em bin/.")
             return cli_path
 
+    # Download automático para Linux
+    if sys.platform.startswith("linux"):
+        print("[Whisper TXT] Baixando pacote universal whisper-cli para Linux...")
+        tar_tmp = BIN_FOLDER / "whisper_linux.tar.gz.tmp"
+        tar_path = BIN_FOLDER / "whisper_linux.tar.gz"
+        try:
+            req = urllib.request.Request(
+                LINUX_RELEASE_URL,
+                headers={"User-Agent": "whisper-txt/1.0"},
+            )
+            with urllib.request.urlopen(req) as resp, open(tar_tmp, "wb") as out_f:
+                shutil.copyfileobj(resp, out_f)
+            tar_tmp.replace(tar_path)
+            with tarfile.open(tar_path, "r:gz") as tar_ref:
+                for member in tar_ref.getmembers():
+                    if member.isreg() or member.issym():
+                        parts = Path(member.name).parts
+                        member.name = parts[-1] if len(parts) > 1 else member.name
+                        tar_ref.extract(member, BIN_FOLDER)
+        finally:
+            if tar_tmp.exists():
+                tar_tmp.unlink()
+            if tar_path.exists():
+                tar_path.unlink()
+
+        if cli_path.exists():
+            os.chmod(cli_path, 0o755)
+            for lib_file in BIN_FOLDER.glob("*.so*"):
+                try:
+                    os.chmod(lib_file, 0o755)
+                except Exception:
+                    pass
+            print("[Whisper TXT] Motor whisper-cli instalado com sucesso em bin/.")
+            return cli_path
+
     raise FileNotFoundError(
-        f"Binário {exe_name} não encontrado em {BIN_FOLDER}. "
-        "Certifique-se de que o whisper.cpp com Vulkan está presente."
+        f"Binário {exe_name} não encontrado em {BIN_FOLDER}.\n"
+        "Para compilar com suporte acelerado a Vulkan no Linux, execute:\n"
+        "    uv run python scripts/build_vulkan.py\n"
+        "Ou coloque o executável whisper-cli manualmente em bin/ ou no PATH do sistema."
     )
 
 
