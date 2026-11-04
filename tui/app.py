@@ -52,12 +52,16 @@ class FilteredMediaDirectoryTree(DirectoryTree):
 
     def filter_paths(self, paths: list[Path]) -> list[Path]:
         valid_exts = VIDEO_EXTENSIONS | AUDIO_EXTENSIONS
-        return [
-            p for p in paths
-            if not p.name.startswith((".", "_"))
-            and p.name != "__pycache__"
-            and (p.is_dir() or (p.is_file() and p.suffix.lower() in valid_exts))
-        ]
+        result = []
+        for p in paths:
+            if p.name.startswith((".", "_")) or p.name == "__pycache__":
+                continue
+            if p.is_dir():
+                result.append(p)
+            elif p.is_file():
+                if p.suffix.lower() in valid_exts or is_video_file(p) or is_audio_file(p):
+                    result.append(p)
+        return result
 
 
 class WhisperTxtApp(App):
@@ -207,6 +211,17 @@ class WhisperTxtApp(App):
             self.start_transcription()
             return
         self.select_media_file(new_path)
+
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
+        """Expande ou recolhe a pasta ao ser clicada ou selecionada com Enter."""
+        if hasattr(event, "node") and event.node is not None:
+            event.node.toggle()
+        dir_path = Path(event.path)
+        try:
+            lbl_dir = self.query_one("#lbl-current-dir", Label)
+            lbl_dir.update(f"Pasta: {dir_path.name or str(dir_path)}")
+        except Exception:
+            pass
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         """Chamado quando o preset de qualidade ou o idioma é alterado."""

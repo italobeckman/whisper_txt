@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 from tui.app import WhisperTxtApp
-from textual.widgets import Header, Footer, ProgressBar, RadioSet, Button, Input, RichLog, DirectoryTree
+from textual.widgets import Header, Footer, ProgressBar, RadioSet, Button, Input, RichLog, DirectoryTree, Label
 
 
 class TestWhisperTxtTUI(unittest.IsolatedAsyncioTestCase):
@@ -62,15 +62,28 @@ class TestWhisperTxtTUI(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(btn_toggle.disabled)
             self.assertEqual(app.selected_track, 0)
 
-            # Click toggle track button
-            await pilot.click("#btn-toggle-track")
+            # Press toggle track button
+            btn_toggle.press()
             await pilot.pause()
             self.assertEqual(app.selected_track, 1)
 
-            # Click toggle track button again to wrap around
-            await pilot.click("#btn-toggle-track")
+            # Press toggle track button again to wrap around
+            btn_toggle.press()
             await pilot.pause()
             self.assertEqual(app.selected_track, 0)
+
+    async def test_directory_selected_toggles_expansion(self):
+        app = WhisperTxtApp()
+        async with app.run_test() as pilot:
+            tree = app.query_one("#file-tree")
+            mock_node = MagicMock()
+            event = DirectoryTree.DirectorySelected(mock_node, Path("/fake/pasta_teste"))
+            app.on_directory_tree_directory_selected(event)
+            await pilot.pause()
+
+            mock_node.toggle.assert_called_once()
+            lbl_dir = app.query_one("#lbl-current-dir", Label)
+            self.assertIn("pasta_teste", str(lbl_dir.render()))
 
     @patch("tui.app.get_audio_tracks")
     async def test_single_track_disables_toggle(self, mock_tracks):
