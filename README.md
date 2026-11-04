@@ -31,13 +31,26 @@ Gerenciado via **[uv](https://docs.astral.sh/uv/)**.
 1. Python 3.10+ e `uv`.
 2. GPU com suporte a Vulkan 1.2+ (drivers atualizados).
 
+#### Pré-requisitos do Sistema (Linux)
+Para utilizar Vulkan e compilar caso necessário:
+- **Ubuntu/Debian:** `sudo apt install libvulkan1 vulkan-tools glslc libvulkan-dev`
+- **Arch / CachyOS / Manjaro:** `sudo pacman -S vulkan-icd-loader vulkan-tools shaderc`
+- **Fedora:** `sudo dnf install vulkan-loader vulkan-tools glslc`
+
+### Clonar e Instalar
+
 ```bash
 git clone https://github.com/usuario/whisper-txt.git
 cd whisper-txt
 uv sync
 ```
 
-Na primeira execução, o binário universal Vulkan e o modelo padrão `ggml-large-v3-turbo-q5_0.bin` são baixados automaticamente caso não existam na pasta do projeto.
+Na primeira execução, o binário universal e o modelo padrão `ggml-large-v3-turbo-q5_0.bin` são baixados automaticamente em Windows e Linux.
+
+> **Dica (Linux com GPU dedicada):** Para compilar o `whisper-cli` com suporte completo e otimizado ao Vulkan para a sua GPU específica localmente:
+> ```bash
+> uv run python scripts/build_vulkan.py
+> ```
 
 ---
 
@@ -48,12 +61,18 @@ Na primeira execução, o binário universal Vulkan e o modelo padrão `ggml-lar
 # Abrir na pasta atual
 uv run cli.py tui
 
-# Ou abrir apontando para pasta/arquivo
+# Ou abrir apontando para pasta/arquivo específico
 uv run cli.py tui "C:\Aulas"
+# Linux:
+uv run cli.py tui "/home/usuario/Videos"
 ```
-- Tecla `[s]` ou `[Enter]` no arquivo: Inicia a transcrição.
-- Seletor de Trilha: Permite alternar canais de áudio em vídeos multi-faixa (ex: OBS).
-- `[Tab]` / `[Shift+Tab]`: Navega entre campos. Tecla `[q]`: Sai.
+- **Navegação de Pastas:**
+  - `[Enter]` em uma **pasta**: Expande/recolhe a pasta para exibir os vídeos e áudios dentro dela.
+  - Botão `▲ Subir Pasta`: Navega para a pasta superior (pai).
+- **Seleção e Ações:**
+  - `[Enter]` ou tecla `[s]` no **arquivo**: Inicia a transcrição com progresso e texto em tempo real.
+  - Botão `Trocar Trilha`: Permite alternar canais de áudio em vídeos multi-faixa (ex: OBS).
+  - `[Tab]` / `[Shift+Tab]`: Navega entre campos de configuração. Tecla `[q]`: Sai da interface.
 
 ### 2. Linha de Comando (`cli.py`)
 
@@ -140,8 +159,9 @@ Teste realizado em gravação real de reunião com 58m 55s (3.535s) em GPU NVIDI
 
 ## Formatos Suportados
 
-- **Vídeo:** `.mp4`, `.mkv`, `.mov`, `.webm`, `.avi`, `.flv`, `.wmv`
-- **Áudio:** `.wav`, `.mp3`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.wma`
+- **Vídeo:** `.mp4`, `.mkv`, `.mov`, `.webm`, `.avi`, `.flv`, `.wmv`, `.m4v`, `.ts`, `.3gp`, `.mpeg`, `.mpg`
+- **Áudio:** `.wav`, `.mp3`, `.m4a`, `.aac`, `.flac`, `.ogg`, `.wma`, `.opus`
+- **Mídias sem extensão:** Arquivos ou gravações exportadas sem extensão no nome são inspecionadas dinamicamente via FFmpeg e transcritas normalmente.
 
 ---
 
@@ -152,10 +172,12 @@ whisper-txt/
 ├── cli.py                  # Ponto de entrada da CLI (transcribe, extract, run, tui)
 ├── config.py               # Configurações do motor Vulkan, modelos e caminhos
 ├── pyproject.toml          # Dependências do projeto (uv)
-├── bin/                    # Binários whisper.cpp Vulkan (whisper-cli.exe, dlls)
+├── bin/                    # Binários whisper.cpp Vulkan (whisper-cli, dlls / shared objects)
 ├── models/                 # Modelos GGML (ggml-large-v3-turbo-q5_0.bin)
+├── scripts/
+│   └── build_vulkan.py     # Script automatizado para compilação local do whisper.cpp Vulkan
 ├── core/
-│   ├── audio.py            # FFmpeg: inspeção e extração de faixas
+│   ├── audio.py            # FFmpeg: inspeção dinâmica e extração de faixas
 │   ├── transcriber.py      # Motor whisper.cpp Vulkan e exportação para .txt
 │   └── runner.py           # Orquestrador do pipeline de processamento
 ├── tui/
