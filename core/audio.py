@@ -8,13 +8,25 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import config
 
-VIDEO_EXTENSIONS = {".mp4", ".mkv", ".mov", ".webm", ".avi", ".flv", ".wmv"}
-AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".wma"}
+VIDEO_EXTENSIONS = {
+    ".mp4", ".mkv", ".mov", ".webm", ".avi", ".flv", ".wmv",
+    ".m4v", ".ts", ".3gp", ".mpeg", ".mpg",
+}
+AUDIO_EXTENSIONS = {
+    ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".wma", ".opus",
+}
 
 
 def is_video_file(path: Path) -> bool:
     """Retorna True se o arquivo tiver extensão de vídeo suportada."""
-    return Path(path).suffix.lower() in VIDEO_EXTENSIONS
+    p = Path(path)
+    if p.suffix.lower() in VIDEO_EXTENSIONS:
+        return True
+    if p.is_file() and not is_audio_file(p):
+        tracks = get_audio_tracks(p)
+        if tracks:
+            return True
+    return False
 
 
 def is_audio_file(path: Path) -> bool:

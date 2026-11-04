@@ -25,6 +25,8 @@ def collect_files(target: Path, extensions: Set[str], recursive: bool = False) -
     if target.is_file():
         if target.suffix.lower() in extensions:
             return [target]
+        if is_video_file(target) or is_audio_file(target):
+            return [target]
         return []
 
     if target.is_dir():

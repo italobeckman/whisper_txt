@@ -12,14 +12,24 @@ class TestCoreAudio(unittest.TestCase):
         self.assertTrue(audio.is_video_file(Path("aula.mkv")))
         self.assertTrue(audio.is_video_file(Path("aula.mov")))
         self.assertTrue(audio.is_video_file(Path("aula.webm")))
+        self.assertTrue(audio.is_video_file(Path("aula.m4v")))
+        self.assertTrue(audio.is_video_file(Path("aula.ts")))
+        self.assertTrue(audio.is_video_file(Path("aula.3gp")))
         self.assertFalse(audio.is_video_file(Path("audio.wav")))
         self.assertFalse(audio.is_video_file(Path("texto.txt")))
 
         self.assertTrue(audio.is_audio_file(Path("audio.wav")))
         self.assertTrue(audio.is_audio_file(Path("audio.mp3")))
         self.assertTrue(audio.is_audio_file(Path("audio.m4a")))
+        self.assertTrue(audio.is_audio_file(Path("audio.opus")))
         self.assertFalse(audio.is_audio_file(Path("aula.mp4")))
         self.assertFalse(audio.is_audio_file(Path("doc.pdf")))
+
+    @patch("core.audio.get_audio_tracks")
+    def test_extensionless_file_detection(self, mock_get_tracks):
+        mock_get_tracks.return_value = [{"index": 0, "codec": "aac", "language": "por"}]
+        with patch.object(Path, "is_file", return_value=True):
+            self.assertTrue(audio.is_video_file(Path("arquivo_sem_extensao")))
 
     @patch("subprocess.run")
     def test_extract_audio_calls_ffmpeg(self, mock_run):
