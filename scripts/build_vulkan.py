@@ -32,8 +32,12 @@ def ensure_tools():
         missing.append("ninja")
 
     if missing:
-        print(f"Instalando ferramentas ausentes via uv ({', '.join(missing)})...")
-        subprocess.run([sys.executable, "-m", "pip", "install", *missing], check=False)
+        print(f"Instalando ferramentas ausentes ({', '.join(missing)})...")
+        uv_bin = shutil.which("uv")
+        if uv_bin:
+            subprocess.run([uv_bin, "pip", "install", *missing], check=False)
+        else:
+            subprocess.run([sys.executable, "-m", "pip", "install", *missing], check=False)
 
 
 def check_vulkan():
@@ -101,6 +105,8 @@ def build_whisper_vulkan():
             "-B", "build",
             "-DGGML_VULKAN=1",
             "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_INSTALL_RPATH=$ORIGIN",
+            "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON",
         ]
         if ninja_bin:
             cmake_cmd.extend(["-G", "Ninja"])

@@ -34,7 +34,7 @@ def collect_files(target: Path, extensions: Set[str], recursive: bool = False) -
         matches = [
             p for p in target.glob(pattern)
             if p.is_file()
-            and p.suffix.lower() in extensions
+            and (p.suffix.lower() in extensions or (not p.suffix and (is_video_file(p) or is_audio_file(p))))
             and not p.name.startswith((".", "_"))
             and not any(part.startswith((".", "_")) for part in p.parts[:-1])
         ]

@@ -22,7 +22,7 @@ def is_video_file(path: Path) -> bool:
     p = Path(path)
     if p.suffix.lower() in VIDEO_EXTENSIONS:
         return True
-    if p.is_file() and not is_audio_file(p):
+    if p.is_file() and not p.suffix:
         tracks = get_audio_tracks(p)
         if tracks:
             return True

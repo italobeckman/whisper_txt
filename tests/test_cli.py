@@ -55,6 +55,23 @@ class TestCLIParser(unittest.TestCase):
         args = self.parser.parse_args(["tui"])
         self.assertEqual(args.command, "tui")
 
+    def test_collect_files_includes_extensionless_in_dir(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from cli import collect_files
+        from core.audio import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td)
+            vid = p / "aula_sem_extensao"
+            vid.write_text("data")
+            txt = p / "nota.txt"
+            txt.write_text("nota")
+            with patch("cli.is_video_file", side_effect=lambda x: x.name == "aula_sem_extensao"):
+                files = collect_files(p, VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)
+                self.assertEqual(len(files), 1)
+                self.assertEqual(files[0].name, "aula_sem_extensao")
+
 
 if __name__ == "__main__":
     unittest.main()

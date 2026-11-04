@@ -31,6 +31,12 @@ class TestCoreAudio(unittest.TestCase):
         with patch.object(Path, "is_file", return_value=True):
             self.assertTrue(audio.is_video_file(Path("arquivo_sem_extensao")))
 
+    @patch("core.audio.get_audio_tracks")
+    def test_non_media_file_does_not_probe_ffmpeg(self, mock_get_tracks):
+        with patch.object(Path, "is_file", return_value=True):
+            self.assertFalse(audio.is_video_file(Path("documento.pdf")))
+            mock_get_tracks.assert_not_called()
+
     @patch("subprocess.run")
     def test_extract_audio_calls_ffmpeg(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)

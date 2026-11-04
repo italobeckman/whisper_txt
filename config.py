@@ -92,6 +92,8 @@ def get_whisper_cli() -> Path:
                         parts = Path(member.name).parts
                         member.name = parts[-1] if len(parts) > 1 else member.name
                         tar_ref.extract(member, BIN_FOLDER)
+        except Exception as e:
+            print(f"[Whisper TXT] Aviso: download automático para Linux falhou ({e}).")
         finally:
             if tar_tmp.exists():
                 tar_tmp.unlink()
