@@ -103,6 +103,33 @@ class TestCoreAudio(unittest.TestCase):
         # Clean up the created temp file if exists
         audio.cleanup_temp_audio(resolved)
 
+    def test_resolve_audio_source_keeps_native_formats(self):
+        for name in ("a.wav", "a.mp3", "a.flac", "a.ogg", "A.MP3"):
+            with self.subTest(name=name):
+                resolved, is_temp = audio.resolve_audio_source(Path(name))
+                self.assertEqual(resolved, Path(name))
+                self.assertFalse(is_temp)
+
+    @patch("core.audio.extract_audio")
+    def test_resolve_audio_source_converts_non_native_audio(self, mock_extract):
+        """whisper-cli não lê m4a/aac/opus/wma: devem ser convertidos para WAV."""
+        mock_extract.return_value = True
+        for name in ("voz.m4a", "voz.aac", "voz.opus", "voz.wma"):
+            with self.subTest(name=name):
+                mock_extract.reset_mock()
+                resolved, is_temp = audio.resolve_audio_source(Path(name))
+                try:
+                    self.assertTrue(is_temp)
+                    self.assertTrue(str(resolved).endswith(".wav"))
+                    mock_extract.assert_called_once()
+                finally:
+                    audio.cleanup_temp_audio(resolved)
+
+    def test_is_native_audio_file(self):
+        self.assertTrue(audio.is_native_audio_file(Path("a.WAV")))
+        self.assertFalse(audio.is_native_audio_file(Path("a.m4a")))
+        self.assertFalse(audio.is_native_audio_file(Path("a.mp4")))
+
 
 if __name__ == "__main__":
     unittest.main()

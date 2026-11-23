@@ -6,7 +6,7 @@ import config
 from core.audio import (
     cleanup_temp_audio,
     extract_audio,
-    is_audio_file,
+    is_native_audio_file,
     resolve_audio_source,
 )
 from core.transcriber import Transcriber, add_extension
@@ -58,7 +58,7 @@ def run_pipeline(
     temp_audio_path = None
     is_temp = False
 
-    if is_audio_file(input_path):
+    if is_native_audio_file(input_path):
         audio_target = input_path
     else:
         if keep_audio:
