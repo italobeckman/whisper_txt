@@ -310,6 +310,7 @@ class WhisperTxtApp(App):
         btn = self.query_one("#btn-start", Button)
 
         try:
+            self.call_from_thread(progress_bar.update, total=100, progress=0)
             self.call_from_thread(lbl_status.update, "Status: Resolvendo áudio...")
             audio_source, is_temp = resolve_audio_source(file_path, track_index=track_index)
             temp_audio = audio_source if is_temp else None
@@ -323,19 +324,33 @@ class WhisperTxtApp(App):
                 self.call_from_thread(self._append_log_line, line)
 
             def progress_callback(pct: float, elapsed: float) -> None:
-                self.call_from_thread(progress_bar.update, progress=pct)
+                self.call_from_thread(progress_bar.update, total=100, progress=pct)
                 self.call_from_thread(
                     lbl_status.update,
                     f"Status: Transcrevendo... {pct:.1f}% ({elapsed:.0f}s)",
                 )
 
-            self.call_from_thread(lbl_status.update, "Status: Transcrevendo áudio com Whisper...")
+            last_download_status = None
+
+            def download_callback(artifact: str, downloaded: int, total: int | None) -> None:
+                nonlocal last_download_status
+                if total:
+                    detail = f"{100 * downloaded // total}%"
+                else:
+                    detail = f"{downloaded // (1024 * 1024)} MiB recebidos"
+                status = f"Status: Baixando {artifact}... {detail}"
+                if status != last_download_status:
+                    self.call_from_thread(progress_bar.update, total=total or None, progress=downloaded)
+                    self.call_from_thread(lbl_status.update, status)
+                    last_download_status = status
+
             segments, _ = transcriber.transcribe(
                 audio_path=audio_source,
                 language=language,
                 initial_prompt=prompt,
                 on_segment=segment_callback,
                 on_progress=progress_callback,
+                on_download_progress=download_callback,
             )
 
             # Exporta na mesma pasta do arquivo original em .txt
@@ -347,7 +362,7 @@ class WhisperTxtApp(App):
             )
 
             elapsed_total = time.time() - start_time
-            self.call_from_thread(progress_bar.update, progress=100.0)
+            self.call_from_thread(progress_bar.update, total=100, progress=100)
             self.call_from_thread(
                 lbl_status.update,
                 f"Status: [bold green]Concluído em {elapsed_total:.0f}s![/]",

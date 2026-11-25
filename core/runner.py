@@ -9,7 +9,7 @@ from core.audio import (
     is_native_audio_file,
     resolve_audio_source,
 )
-from core.transcriber import Transcriber, add_extension
+from core.transcriber import DownloadProgress, Transcriber, add_extension
 
 
 def run_pipeline(
@@ -24,6 +24,7 @@ def run_pipeline(
     on_segment: Optional[Callable[[Any], None]] = None,
     on_progress: Optional[Callable[[str, float, str], None]] = None,
     transcriber_instance: Optional[Transcriber] = None,
+    on_download_progress: DownloadProgress | None = None,
 ) -> Dict[str, Any]:
     """
     Executa a transcrição completa de um vídeo gerando .txt.
@@ -94,6 +95,7 @@ def run_pipeline(
             initial_prompt=initial_prompt,
             on_segment=segment_wrapper,
             on_progress=progress_wrapper,
+            on_download_progress=on_download_progress,
         )
 
         txt_file = transcriber.export_txt(

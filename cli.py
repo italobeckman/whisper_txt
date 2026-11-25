@@ -1,5 +1,6 @@
 """CLI entrypoint for whisper-txt - Transcrição de Vídeos para TXT."""
 import argparse
+import logging
 import sys
 import time
 from pathlib import Path
@@ -16,7 +17,26 @@ from core.audio import (
     resolve_audio_source,
 )
 from core.runner import run_pipeline
-from core.transcriber import Transcriber, add_extension
+from core.transcriber import DownloadProgress, Transcriber, add_extension
+
+
+def make_download_progress_printer() -> DownloadProgress:
+    last_step = None
+
+    def report(artifact: str, downloaded: int, total: int | None) -> None:
+        nonlocal last_step
+        if total:
+            percent = 100 * downloaded // total
+            step = percent // 5
+            detail = f"{percent}%"
+        else:
+            step = downloaded // (1024 * 1024)
+            detail = f"{step} MiB recebidos"
+        if downloaded == 0 or (artifact, step) != last_step:
+            print(f"    Baixando {artifact}... {detail}", flush=True)
+            last_step = (artifact, step)
+
+    return report
 
 
 def collect_files(target: Path, extensions: Set[str], recursive: bool = False) -> List[Path]:
@@ -118,6 +138,7 @@ def handle_transcribe(args: argparse.Namespace) -> None:
         quality=args.quality,
         threads=getattr(args, "threads", None),
     )
+    download_progress = make_download_progress_printer()
 
     for i, file_path in enumerate(files, 1):
         print(f"[{i}/{len(files)}] {file_path.name}")
@@ -153,6 +174,7 @@ def handle_transcribe(args: argparse.Namespace) -> None:
                 language=args.language,
                 beam_size=args.beam_size,
                 initial_prompt=args.prompt,
+                on_download_progress=download_progress,
             )
             created = transcriber.export_txt(
                 segments=segments,
@@ -226,6 +248,7 @@ def handle_run(args: argparse.Namespace) -> None:
     print(f"Qualidade: {args.quality} | Idioma: {args.language}\n")
 
     transcriber_inst = Transcriber(quality=args.quality)
+    download_progress = make_download_progress_printer()
 
     for i, media_file in enumerate(files, 1):
         print(f"[{i}/{len(files)}] {media_file.name}")
@@ -246,6 +269,7 @@ def handle_run(args: argparse.Namespace) -> None:
                 track_index=args.track,
                 on_progress=progress_printer,
                 transcriber_instance=transcriber_inst,
+                on_download_progress=download_progress,
             )
             if res.get("skipped"):
                 print("    -> Já transcrito, pulando.")
@@ -289,6 +313,8 @@ def main():
 
     handler = handlers.get(args.command)
     if handler:
+        if args.command != "tui":
+            logging.basicConfig(format="%(message)s")
         handler(args)
     else:
         parser.print_help()

@@ -1,4 +1,5 @@
 """Audio extraction and format handling utilities using FFmpeg."""
+import logging
 import re
 import subprocess
 import sys
@@ -7,6 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import config
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 VIDEO_EXTENSIONS = {
     ".mp4", ".mkv", ".mov", ".webm", ".avi", ".flv", ".wmv",
@@ -130,11 +134,11 @@ def extract_audio(
         )
         if result.returncode != 0:
             err_msg = result.stderr.strip() if result.stderr else f"Código de saída {result.returncode}"
-            print(f"[ERRO FFmpeg] {err_msg}", file=sys.stderr)
+            logger.error("[ERRO FFmpeg] %s", err_msg)
             return False
         return True
     except Exception as e:
-        print(f"[ERRO] Falha ao executar FFmpeg: {e}", file=sys.stderr)
+        logger.error("[ERRO] Falha ao executar FFmpeg: %s", e)
         return False
 
 
@@ -190,4 +194,4 @@ def cleanup_temp_audio(audio_path: Optional[Path]) -> None:
         if path.exists():
             path.unlink()
     except Exception as e:
-        print(f"[AVISO] Não foi possível remover arquivo temporário {audio_path}: {e}", file=sys.stderr)
+        logger.warning("[AVISO] Não foi possível remover arquivo temporário %s: %s", audio_path, e)

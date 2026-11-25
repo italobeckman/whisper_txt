@@ -4,10 +4,13 @@ import re
 import subprocess
 import sys
 import time
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import config
+
+DownloadProgress = Callable[[str, int, int | None], None]
 
 PRESETS: Dict[str, Dict[str, Any]] = {
     "fast": {
@@ -114,14 +117,18 @@ class Transcriber:
         initial_prompt: Optional[str] = None,
         on_segment: Optional[Callable[[Segment], None]] = None,
         on_progress: Optional[Callable[[float, float], None]] = None,
+        on_download_progress: DownloadProgress | None = None,
         **kwargs: Any,
     ) -> Tuple[List[Segment], TranscriptionInfo]:
         """
         Executa a transcrição do áudio utilizando o binário whisper-cli com aceleração Vulkan.
         Transmite segmentos transcritos em tempo real para on_segment e progresso percentual para on_progress.
+        Em downloads, on_download_progress recebe o tipo de arquivo, os bytes baixados e o total.
         """
-        cli_path = config.get_whisper_cli()
-        model_path = config.get_model_path(self.model_filename)
+        cli_progress = partial(on_download_progress, "binário") if on_download_progress else None
+        model_progress = partial(on_download_progress, "modelo") if on_download_progress else None
+        cli_path = config.get_whisper_cli(on_progress=cli_progress)
+        model_path = config.get_model_path(self.model_filename, on_progress=model_progress)
         beam = beam_size if beam_size is not None else self.beam_size
         lang = language or config.LANGUAGE
 
