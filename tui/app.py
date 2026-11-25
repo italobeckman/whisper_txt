@@ -33,6 +33,7 @@ from core.audio import (
     VIDEO_EXTENSIONS,
     cleanup_temp_audio,
     get_audio_tracks,
+    is_audio_file,
     is_video_file,
     resolve_audio_source,
 )

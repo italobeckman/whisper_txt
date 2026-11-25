@@ -1,3 +1,4 @@
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -6,6 +7,25 @@ from textual.widgets import Header, Footer, ProgressBar, RadioSet, Button, Input
 
 
 class TestWhisperTxtTUI(unittest.IsolatedAsyncioTestCase):
+    async def test_tree_shows_media_and_subdirs_but_not_non_media(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "a.mp3").write_bytes(b"")
+            (root / "sub").mkdir()
+            (root / "sub" / "b.wav").write_bytes(b"")
+            (root / "notes.txt").write_text("nota", encoding="utf-8")
+
+            app = WhisperTxtApp(initial_path=root)
+            async with app.run_test():
+                tree = app.query_one("#file-tree", DirectoryTree)
+                # O DirectoryTree popula os filhos em workers; reload() é
+                # aguardável e garante a árvore carregada antes da asserção.
+                await tree.reload()
+                names = {node.data.path.name for node in tree.root.children}
+                self.assertIn("sub", names)
+                self.assertIn("a.mp3", names)
+                self.assertNotIn("notes.txt", names)
+
     async def test_app_layout_and_initial_state(self):
         app = WhisperTxtApp()
         async with app.run_test():
