@@ -123,6 +123,7 @@ def transcription_input(tmp_path, monkeypatch):
     audio_path.touch()
     monkeypatch.setattr(config, "MODEL_FOLDER", tmp_path / "models")
     monkeypatch.setattr(config, "get_whisper_cli", Mock(return_value=tmp_path / "whisper-cli"))
+    monkeypatch.setattr(config, "backend_name", Mock(return_value="CPU"))
     process = Mock()
     process.stdout = io.StringIO("progress = 50%\n")
     process.wait.return_value = 0
