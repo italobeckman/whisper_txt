@@ -56,6 +56,53 @@ class TestCoreAudio(unittest.TestCase):
         self.assertIn("pcm_s16le", cmd)
 
     @patch("subprocess.run")
+    def test_extract_audio_ffmpeg_failure_returns_false_silently(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=1, stderr="erro no FFmpeg")
+        with patch("sys.stderr") as mock_stderr:
+            res = audio.extract_audio(
+                Path("input.mp4"), Path("out.wav"), ffmpeg_path="ffmpeg", overwrite=True
+            )
+        self.assertFalse(res)
+        mock_stderr.write.assert_not_called()
+
+    @patch("subprocess.run")
+    def test_extract_audio_raises_with_stderr_tail(self, mock_run):
+        stderr = "\n".join(f"linha {i}" for i in range(10))
+        mock_run.return_value = MagicMock(returncode=1, stderr=stderr)
+        with self.assertRaises(audio.FFmpegError) as ctx:
+            audio.extract_audio(
+                Path("input.mp4"),
+                Path("out.wav"),
+                ffmpeg_path="ffmpeg",
+                overwrite=True,
+                raise_on_error=True,
+            )
+        message = str(ctx.exception)
+        self.assertIn("código 1", message)
+        self.assertIn("linha 9", message)
+        self.assertNotIn("linha 0", message)
+
+    @patch("subprocess.run")
+    def test_resolve_audio_source_error_includes_ffmpeg_stderr(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=2, stderr="[mov] moov atom not found")
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(RuntimeError) as ctx:
+                audio.resolve_audio_source(Path("voz.m4a"), temp_dir=Path(tmp))
+        message = str(ctx.exception)
+        self.assertIn("voz.m4a", message)
+        self.assertIn("moov atom not found", message)
+
+    def test_cleanup_temp_audio_logs_warning_instead_of_printing(self):
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            Path, "unlink", side_effect=OSError("acesso negado")
+        ):
+            with patch("sys.stderr") as mock_stderr:
+                with self.assertLogs("core.audio", level="WARNING") as captured:
+                    audio.cleanup_temp_audio(Path("temp.wav"))
+        self.assertIn("acesso negado", "\n".join(captured.output))
+        mock_stderr.write.assert_not_called()
+
+    @patch("subprocess.run")
     def test_get_audio_tracks_parses_ffmpeg_output(self, mock_run):
         mock_output = (
             "Input #0, mov,mp4,m4a,3gp,from 'aula.mp4':\n"
