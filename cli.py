@@ -12,6 +12,7 @@ from core.audio import (
     cleanup_temp_audio,
     extract_audio,
     get_audio_tracks,
+    is_audio_file,
     is_video_file,
     resolve_audio_source,
 )
