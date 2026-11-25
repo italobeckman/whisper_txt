@@ -35,7 +35,7 @@ def find_ffmpeg() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
-def get_whisper_cli(quiet: bool = False) -> Path:
+def get_whisper_cli() -> Path:
     """
     Localiza o binário whisper-cli com aceleração Vulkan.
     Se não estiver presente em bin/, baixa e descompacta automaticamente.
@@ -56,8 +56,7 @@ def get_whisper_cli(quiet: bool = False) -> Path:
 
     # Download automático do pacote Vulkan pré-compilado para Windows
     if sys.platform == "win32":
-        if not quiet:
-            print("[Whisper TXT] Baixando binário universal whisper-cli (Vulkan para Windows)...")
+        print("[Whisper TXT] Baixando binário universal whisper-cli (Vulkan para Windows)...")
         zip_tmp = BIN_FOLDER / "whisper_vulkan.zip.tmp"
         zip_path = BIN_FOLDER / "whisper_vulkan.zip"
         try:
@@ -72,14 +71,12 @@ def get_whisper_cli(quiet: bool = False) -> Path:
                 zip_path.unlink()
 
         if cli_path.exists():
-            if not quiet:
-                print("[Whisper TXT] Motor Vulkan instalado com sucesso em bin/.")
+            print("[Whisper TXT] Motor Vulkan instalado com sucesso em bin/.")
             return cli_path
 
     # Download automático para Linux
     if sys.platform.startswith("linux"):
-        if not quiet:
-            print("[Whisper TXT] Baixando pacote universal whisper-cli para Linux...")
+        print("[Whisper TXT] Baixando pacote universal whisper-cli para Linux...")
         tar_tmp = BIN_FOLDER / "whisper_linux.tar.gz.tmp"
         tar_path = BIN_FOLDER / "whisper_linux.tar.gz"
         try:
@@ -97,8 +94,7 @@ def get_whisper_cli(quiet: bool = False) -> Path:
                         member.name = parts[-1] if len(parts) > 1 else member.name
                         tar_ref.extract(member, BIN_FOLDER)
         except Exception as e:
-            if not quiet:
-                print(f"[Whisper TXT] Aviso: download automático para Linux falhou ({e}).")
+            print(f"[Whisper TXT] Aviso: download automático para Linux falhou ({e}).")
         finally:
             if tar_tmp.exists():
                 tar_tmp.unlink()
@@ -112,8 +108,7 @@ def get_whisper_cli(quiet: bool = False) -> Path:
                     os.chmod(lib_file, 0o755)
                 except Exception:
                     pass
-            if not quiet:
-                print("[Whisper TXT] Motor whisper-cli instalado com sucesso em bin/.")
+            print("[Whisper TXT] Motor whisper-cli instalado com sucesso em bin/.")
             return cli_path
 
     raise FileNotFoundError(
@@ -124,7 +119,7 @@ def get_whisper_cli(quiet: bool = False) -> Path:
     )
 
 
-def get_model_path(model_filename: str, quiet: bool = False) -> Path:
+def get_model_path(model_filename: str) -> Path:
     """
     Retorna o caminho do modelo GGUF/bin.
     Se não existir em models/, baixa automaticamente do repositório oficial da Hugging Face.
@@ -140,12 +135,9 @@ def get_model_path(model_filename: str, quiet: bool = False) -> Path:
         # Se for nome customizado, tenta baixar diretamente do Hugging Face whisper.cpp
         url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{model_filename}"
 
-    if not quiet:
-        print(f"\n[Whisper TXT] Baixando modelo {model_filename} do Hugging Face...")
-    if not quiet:
-        print(f"Origem: {url}")
-    if not quiet:
-        print(f"Destino: {model_path}")
+    print(f"\n[Whisper TXT] Baixando modelo {model_filename} do Hugging Face...")
+    print(f"Origem: {url}")
+    print(f"Destino: {model_path}")
 
     tmp_path = model_path.with_suffix(f"{model_path.suffix}.tmp")
     try:
@@ -155,14 +147,13 @@ def get_model_path(model_filename: str, quiet: bool = False) -> Path:
         if tmp_path.exists():
             tmp_path.unlink()
 
-    if not quiet:
-        print(f"[Whisper TXT] Download concluído ({model_path.stat().st_size // (1024 * 1024)} MB).\n")
+    print(f"[Whisper TXT] Download concluído ({model_path.stat().st_size // (1024 * 1024)} MB).\n")
     return model_path
 
 
 @lru_cache(maxsize=1)
-def detect_vulkan_devices() -> tuple[str, ...]:
-    """Consulta Vulkan somente quando necess?rio e guarda o resultado."""
+def detect_vulkan_devices() -> tuple[str, ...] | None:
+    """Consulta Vulkan somente quando necessário e guarda o resultado."""
     try:
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         result = subprocess.run(
@@ -175,14 +166,16 @@ def detect_vulkan_devices() -> tuple[str, ...]:
             if "deviceName" in line and "=" in line
         )
     except (OSError, subprocess.SubprocessError):
-        return ()
+        return None
 
 
 def backend_name(device: str = None, cpu: bool = False) -> str:
-    """Retorna o dispositivo selecionado ou CPU quando Vulkan n?o ? uma GPU real."""
+    """Retorna o dispositivo selecionado ou CPU quando Vulkan não é uma GPU real."""
     if cpu:
         return "CPU"
     devices = detect_vulkan_devices()
+    if devices is None:
+        return "Vulkan (não detectado)"
     index = int(device) if device is not None and str(device).isdigit() else 0
     if index >= len(devices):
         return "CPU"

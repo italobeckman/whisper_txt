@@ -1,5 +1,6 @@
-﻿import importlib
+import importlib
 import io
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -30,13 +31,17 @@ def test_backend_scenarios():
             run.assert_called_once()
     config.detect_vulkan_devices.cache_clear()
     with patch("config.subprocess.run", side_effect=FileNotFoundError):
-        assert config.backend_name() == "CPU"
+        assert config.backend_name() == "Vulkan (não detectado)"
+    config.detect_vulkan_devices.cache_clear()
+    with patch("config.subprocess.run", side_effect=subprocess.CalledProcessError(1, "vulkaninfo")):
+        assert config.backend_name() == "Vulkan (não detectado)"
     config.detect_vulkan_devices.cache_clear()
 
 
 def test_command_backend_and_device():
     for name, cpu, device, expected in [
         ("NVIDIA RTX", False, None, []),
+        ("Vulkan (não detectado)", False, None, []),
         ("CPU", False, None, ["-ng"]),
         ("NVIDIA RTX", True, None, ["-ng"]),
         ("NVIDIA RTX", False, "1", ["--device", "1"]),
@@ -61,3 +66,21 @@ def test_cli_cpu_flags():
     parser = build_parser()
     for command in ("run", "transcribe"):
         assert parser.parse_args([command, "-i", "audio.wav", "--cpu"]).cpu
+
+
+def test_missing_vulkaninfo_does_not_disable_gpu():
+    config.detect_vulkan_devices.cache_clear()
+    process = MagicMock()
+    process.stdout = io.StringIO("")
+    process.wait.return_value = 0
+    try:
+        with patch("config.subprocess.run", side_effect=FileNotFoundError), \
+             patch("config.get_whisper_cli", return_value=Path("whisper-cli")), \
+             patch("config.get_model_path", return_value=Path("model")), \
+             patch("subprocess.Popen", return_value=process) as popen:
+            transcriber = Transcriber()
+            assert transcriber.backend == "Vulkan (não detectado)"
+            transcriber.transcribe(Path("audio.wav"))
+            assert "-ng" not in popen.call_args.args[0]
+    finally:
+        config.detect_vulkan_devices.cache_clear()

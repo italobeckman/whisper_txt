@@ -126,7 +126,7 @@ class WhisperTxtApp(App):
                     with Horizontal(classes="config-row"):
                         yield Label("Backend:", classes="row-label")
                         with RadioSet(id="backend-radios"):
-                            yield RadioButton("Autom?tico", id="backend-auto", value=True)
+                            yield RadioButton("Automático", id="backend-auto", value=True)
                             yield RadioButton("CPU", id="backend-cpu")
 
                     with Horizontal(classes="config-row"):
@@ -328,7 +328,7 @@ class WhisperTxtApp(App):
             temp_audio = audio_source if is_temp else None
 
             self.call_from_thread(lbl_status.update, f"Status: Carregando modelo ({quality})...")
-            transcriber = Transcriber(quality=quality, cpu=cpu, quiet=True)
+            transcriber = Transcriber(quality=quality, cpu=cpu)
 
             def segment_callback(seg: Any) -> None:
                 ts = format_seconds(seg.start)

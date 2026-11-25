@@ -96,7 +96,6 @@ class Transcriber:
         quality: str = "fast",
         threads: Optional[int] = None,
         cpu: bool = False,
-        quiet: bool = False,
         **kwargs: Any,
     ):
         preset = PRESETS.get(quality.lower(), PRESETS[config.DEFAULT_PRESET])
@@ -104,7 +103,6 @@ class Transcriber:
         default_model = preset["model"]
         self.model_filename = normalize_model_filename(model_name, default_model)
         self.beam_size = preset.get("beam_size", 1)
-        self.quiet = quiet
         self.device = device
         self.backend = config.backend_name(device, cpu)
         self.threads = threads or min(8, max(1, (os.cpu_count() or 4)))
@@ -124,8 +122,8 @@ class Transcriber:
         Executa a transcrição do áudio utilizando o binário whisper-cli com aceleração Vulkan.
         Transmite segmentos transcritos em tempo real para on_segment e progresso percentual para on_progress.
         """
-        cli_path = config.get_whisper_cli(quiet=self.quiet)
-        model_path = config.get_model_path(self.model_filename, quiet=self.quiet)
+        cli_path = config.get_whisper_cli()
+        model_path = config.get_model_path(self.model_filename)
         beam = beam_size if beam_size is not None else self.beam_size
         lang = language or config.LANGUAGE
 

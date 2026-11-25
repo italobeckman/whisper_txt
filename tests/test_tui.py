@@ -36,6 +36,16 @@ class TestWhisperTxtTUI(unittest.IsolatedAsyncioTestCase):
             lang_selector = app.query_one("#radio-language", RadioSet)
             self.assertIsNotNone(lang_selector)
 
+    @patch("config.backend_name", side_effect=lambda device=None, cpu=False: "CPU" if cpu else "NVIDIA RTX")
+    async def test_cpu_selection_updates_subtitle(self, mock_backend):
+        app = WhisperTxtApp()
+        async with app.run_test() as pilot:
+            self.assertEqual(app.sub_title, "Backend: NVIDIA RTX")
+            await pilot.click("#backend-cpu")
+            await pilot.pause()
+            self.assertTrue(app.selected_cpu)
+            self.assertEqual(app.sub_title, "Backend: CPU")
+
     async def test_language_selection_changes_property(self):
         app = WhisperTxtApp()
         async with app.run_test() as pilot:
