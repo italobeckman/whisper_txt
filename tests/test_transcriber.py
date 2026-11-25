@@ -136,11 +136,12 @@ class TestCoreTranscriber(unittest.TestCase):
         self.assertEqual(info.language, "pt")
         self.assertEqual(info.duration, 5.1)
 
+    @patch("config.backend_name", return_value="CPU")
     @patch("config.get_model_path")
     @patch("config.get_whisper_cli")
     @patch("subprocess.Popen")
     def test_transcribe_error_includes_recent_output_on_failure(
-        self, mock_popen, mock_get_cli, mock_get_model
+        self, mock_popen, mock_get_cli, mock_get_model, mock_backend
     ):
         mock_get_cli.return_value = Path("bin/whisper-cli.exe")
         mock_get_model.return_value = Path("models/ggml-large-v3-turbo-q5_0.bin")
@@ -172,11 +173,12 @@ class TestCoreTranscriber(unittest.TestCase):
         self.assertNotIn("progress = 10%", message)
         self.assertNotIn("fala que não deve aparecer no erro", message)
 
+    @patch("config.backend_name", return_value="CPU")
     @patch("config.get_model_path")
     @patch("config.get_whisper_cli")
     @patch("subprocess.Popen")
     def test_transcribe_error_keeps_only_last_20_output_lines(
-        self, mock_popen, mock_get_cli, mock_get_model
+        self, mock_popen, mock_get_cli, mock_get_model, mock_backend
     ):
         mock_get_cli.return_value = Path("bin/whisper-cli.exe")
         mock_get_model.return_value = Path("models/ggml-large-v3-turbo-q5_0.bin")
