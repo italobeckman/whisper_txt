@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -142,6 +143,7 @@ class Transcriber:
 
         start_time = time.time()
         collected_segments: List[Segment] = []
+        recent_output: deque[str] = deque(maxlen=20)
         re_progress = re.compile(r"progress\s*=\s*(\d+)%")
         re_segment = re.compile(
             r"\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)"
@@ -198,6 +200,10 @@ class Transcriber:
                                     on_segment(segment)
                                 except Exception:
                                     pass
+
+                    # Guarda a saída útil (sem segmentos nem progresso) para diagnosticar falhas
+                    if not match_prog and not match_seg:
+                        recent_output.append(line_str)
         finally:
             if process.poll() is None:
                 try:
@@ -212,7 +218,10 @@ class Transcriber:
             returncode = process.wait()
 
         if returncode != 0:
-            raise RuntimeError(f"whisper-cli falhou com código de saída {returncode}")
+            message = f"whisper-cli falhou com código de saída {returncode}"
+            if recent_output:
+                message += "\nÚltimas linhas da saída:\n" + "\n".join(recent_output)
+            raise RuntimeError(message)
 
         total_duration = collected_segments[-1].end if collected_segments else 0.0
         info = TranscriptionInfo(language=lang, duration=total_duration)

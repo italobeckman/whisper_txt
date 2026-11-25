@@ -135,6 +135,69 @@ class TestCoreTranscriber(unittest.TestCase):
         self.assertEqual(info.language, "pt")
         self.assertEqual(info.duration, 5.1)
 
+    @patch("config.get_model_path")
+    @patch("config.get_whisper_cli")
+    @patch("subprocess.Popen")
+    def test_transcribe_error_includes_recent_output_on_failure(
+        self, mock_popen, mock_get_cli, mock_get_model
+    ):
+        mock_get_cli.return_value = Path("bin/whisper-cli.exe")
+        mock_get_model.return_value = Path("models/ggml-large-v3-turbo-q5_0.bin")
+
+        mock_process = MagicMock()
+        mock_process.stdout = io.StringIO(
+            "whisper_init_from_file_with_params_no_state: loading model\n"
+            "progress = 10%\n"
+            "[00:00:00.000 --> 00:00:01.000]   fala que não deve aparecer no erro\n"
+            "ggml_backend_vk_init: error: failed to allocate Vulkan buffer\n"
+            "whisper_backend_init_gpu: no GPU found\n"
+        )
+        mock_process.wait.return_value = 3
+        mock_popen.return_value = mock_process
+
+        transcriber = Transcriber(quality="fast")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            transcriber.transcribe(
+                audio_path=Path("audio.wav"),
+                language="pt",
+                beam_size=1,
+            )
+
+        message = str(ctx.exception)
+        self.assertIn("código de saída 3", message)
+        self.assertIn("failed to allocate Vulkan buffer", message)
+        self.assertIn("no GPU found", message)
+        self.assertNotIn("progress = 10%", message)
+        self.assertNotIn("fala que não deve aparecer no erro", message)
+
+    @patch("config.get_model_path")
+    @patch("config.get_whisper_cli")
+    @patch("subprocess.Popen")
+    def test_transcribe_error_keeps_only_last_20_output_lines(
+        self, mock_popen, mock_get_cli, mock_get_model
+    ):
+        mock_get_cli.return_value = Path("bin/whisper-cli.exe")
+        mock_get_model.return_value = Path("models/ggml-large-v3-turbo-q5_0.bin")
+
+        mock_process = MagicMock()
+        mock_process.stdout = io.StringIO(
+            "\n".join(f"linha de diagnostico {i}" for i in range(30)) + "\n"
+        )
+        mock_process.wait.return_value = 1
+        mock_popen.return_value = mock_process
+
+        transcriber = Transcriber(quality="fast")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            transcriber.transcribe(audio_path=Path("audio.wav"), language="pt", beam_size=1)
+
+        message = str(ctx.exception)
+        self.assertEqual(message.count("linha de diagnostico"), 20)
+        self.assertNotIn("linha de diagnostico 9\n", message)
+        self.assertIn("linha de diagnostico 10", message)
+        self.assertIn("linha de diagnostico 29", message)
+
 
 if __name__ == "__main__":
     unittest.main()
