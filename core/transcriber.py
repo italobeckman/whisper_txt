@@ -5,6 +5,7 @@ import subprocess
 import sys
 import time
 from functools import partial
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -98,6 +99,7 @@ class Transcriber:
         download_root: Optional[str] = None,
         quality: str = "fast",
         threads: Optional[int] = None,
+        cpu: bool = False,
         **kwargs: Any,
     ):
         preset = PRESETS.get(quality.lower(), PRESETS[config.DEFAULT_PRESET])
@@ -105,7 +107,8 @@ class Transcriber:
         default_model = preset["model"]
         self.model_filename = normalize_model_filename(model_name, default_model)
         self.beam_size = preset.get("beam_size", 1)
-        self.device = device or config.DEVICE
+        self.device = device
+        self.backend = config.backend_name(device, cpu)
         self.threads = threads or min(8, max(1, (os.cpu_count() or 4)))
         self.download_root = download_root or config.MODEL_FOLDER
 
@@ -142,13 +145,16 @@ class Transcriber:
             "-bo", str(beam),
             "-pp",
         ]
-        if self.device and str(self.device).isdigit():
-            cmd.extend(["-dev", str(self.device)])
+        if self.backend == "CPU":
+            cmd.append("-ng")
+        elif self.device is not None and str(self.device).isdigit():
+            cmd.extend(["--device", str(self.device)])
         if initial_prompt:
             cmd.extend(["--prompt", initial_prompt])
 
         start_time = time.time()
         collected_segments: List[Segment] = []
+        recent_output: deque[str] = deque(maxlen=20)
         re_progress = re.compile(r"progress\s*=\s*(\d+)%")
         re_segment = re.compile(
             r"\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)"
@@ -205,6 +211,10 @@ class Transcriber:
                                     on_segment(segment)
                                 except Exception:
                                     pass
+
+                    # Guarda a saída útil (sem segmentos nem progresso) para diagnosticar falhas
+                    if not match_prog and not match_seg:
+                        recent_output.append(line_str)
         finally:
             if process.poll() is None:
                 try:
@@ -219,7 +229,10 @@ class Transcriber:
             returncode = process.wait()
 
         if returncode != 0:
-            raise RuntimeError(f"whisper-cli falhou com código de saída {returncode}")
+            message = f"whisper-cli falhou com código de saída {returncode}"
+            if recent_output:
+                message += "\nÚltimas linhas da saída:\n" + "\n".join(recent_output)
+            raise RuntimeError(message)
 
         total_duration = collected_segments[-1].end if collected_segments else 0.0
         info = TranscriptionInfo(language=lang, duration=total_duration)

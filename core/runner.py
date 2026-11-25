@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, Optional
 
 import config
 from core.audio import (
+    FFmpegError,
     cleanup_temp_audio,
     extract_audio,
     is_native_audio_file,
@@ -65,9 +66,16 @@ def run_pipeline(
         if keep_audio:
             suffix_name = f"{base_name}_t{track_index}" if track_index > 0 else base_name
             audio_target = add_extension(out_dir / suffix_name, "wav")
-            success = extract_audio(input_path, audio_target, overwrite=overwrite, track_index=track_index)
-            if not success:
-                raise RuntimeError(f"Falha ao extrair áudio de {input_path}")
+            try:
+                extract_audio(
+                    input_path,
+                    audio_target,
+                    overwrite=overwrite,
+                    track_index=track_index,
+                    raise_on_error=True,
+                )
+            except FFmpegError as e:
+                raise RuntimeError(f"Falha ao extrair áudio de {input_path}: {e}") from e
         else:
             audio_target, is_temp = resolve_audio_source(input_path, track_index=track_index)
             temp_audio_path = audio_target

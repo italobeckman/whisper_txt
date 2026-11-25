@@ -11,6 +11,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Callable
+from functools import lru_cache
 
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_FOLDER = BASE_DIR / "models"
@@ -168,25 +169,38 @@ def get_model_path(model_filename: str, on_progress: DownloadProgress | None = N
     return model_path
 
 
-def detect_device_name() -> str:
-    """Detecta e retorna o nome da GPU Vulkan ativa."""
+@lru_cache(maxsize=1)
+def detect_vulkan_devices() -> tuple[str, ...] | None:
+    """Consulta Vulkan somente quando necessário e guarda o resultado."""
     try:
         creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        res = subprocess.run(
-            ["vulkaninfo", "--summary"],
-            capture_output=True,
-            text=True,
-            creationflags=creationflags,
+        result = subprocess.run(
+            ["vulkaninfo", "--summary"], capture_output=True, text=True,
+            creationflags=creationflags, check=True,
         )
-        for line in res.stdout.splitlines():
-            if "deviceName" in line:
-                return line.split("=")[-1].strip()
-    except Exception:
-        pass
-    return "Vulkan (GPU Universal)"
+        return tuple(
+            line.split("=", 1)[1].strip()
+            for line in result.stdout.splitlines()
+            if "deviceName" in line and "=" in line
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
-DEVICE = detect_device_name()
+def backend_name(device: str = None, cpu: bool = False) -> str:
+    """Retorna o dispositivo selecionado ou CPU quando Vulkan não é uma GPU real."""
+    if cpu:
+        return "CPU"
+    devices = detect_vulkan_devices()
+    if devices is None:
+        return "Vulkan (não detectado)"
+    index = int(device) if device is not None and str(device).isdigit() else 0
+    if index >= len(devices):
+        return "CPU"
+    name = devices[index]
+    if any(software in name.lower() for software in ("llvmpipe", "lavapipe", "swiftshader")):
+        return "CPU"
+    return name or "CPU"
 
 
 def sanitize_filename(name: str) -> str:
