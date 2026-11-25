@@ -1,12 +1,16 @@
 """Configuração central do pipeline de transcrição de vídeos via Vulkan."""
+import http.client
 import os
 import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Callable
 from functools import lru_cache
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -18,6 +22,10 @@ LANGUAGE = "pt"
 
 # Preset padrão: fast (large-v3-turbo q5_0, greedy decoding, 53s / 1h áudio)
 DEFAULT_PRESET = "fast"
+
+DOWNLOAD_TIMEOUT = 30
+DOWNLOAD_CHUNK_SIZE = 1024 * 1024
+DownloadProgress = Callable[[int, int | None], None]
 
 VULKAN_RELEASE_URL = "https://github.com/jerryshell/whisper.cpp-windows-vulkan-bin/releases/download/v1.0.0/whisper.cpp-windows-vulkan.zip"
 LINUX_RELEASE_URL = "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-ubuntu-x64.tar.gz"
@@ -35,7 +43,53 @@ def find_ffmpeg() -> str:
     return imageio_ffmpeg.get_ffmpeg_exe()
 
 
-def get_whisper_cli() -> Path:
+def _download_file(
+    url: str,
+    destination: Path,
+    on_progress: DownloadProgress | None = None,
+    timeout: float = DOWNLOAD_TIMEOUT,
+) -> None:
+    """Publica o arquivo após verificar o tamanho, se informado pelo servidor.
+
+    O callback recebe bytes baixados e o total (None quando desconhecido).
+    """
+    request = urllib.request.Request(url, headers={"User-Agent": "whisper-txt/1.0"})
+    temp_path = None
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            content_length = response.headers.get("Content-Length")
+            total = int(content_length) if content_length is not None else None
+            if total is not None and total < 0:
+                raise ValueError(f"Content-Length inválido: {content_length}")
+
+            downloaded = 0
+            if on_progress:
+                on_progress(downloaded, total)
+            with tempfile.NamedTemporaryFile(
+                dir=destination.parent, prefix=f"{destination.name}.", suffix=".tmp", delete=False,
+            ) as output:
+                temp_path = Path(output.name)
+                while chunk := response.read(DOWNLOAD_CHUNK_SIZE):
+                    downloaded += len(chunk)
+                    if total is not None and downloaded > total:
+                        break
+                    output.write(chunk)
+                    if on_progress:
+                        on_progress(downloaded, total)
+
+        if total is not None and downloaded != total:
+            raise ValueError(f"Content-Length de {total} bytes, recebidos {downloaded} bytes")
+        temp_path.replace(destination)
+    except (OSError, http.client.HTTPException, ValueError) as error:
+        cause = error.reason if isinstance(error, urllib.error.URLError) else error
+        detail = f"tempo limite de {timeout:g} s excedido" if isinstance(cause, TimeoutError) else str(error)
+        raise RuntimeError(f"Falha ao baixar {destination.name}: {detail}") from error
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def get_whisper_cli(on_progress: DownloadProgress | None = None) -> Path:
     """
     Localiza o binário whisper-cli com aceleração Vulkan.
     Se não estiver presente em bin/, baixa e descompacta automaticamente.
@@ -56,50 +110,27 @@ def get_whisper_cli() -> Path:
 
     # Download automático do pacote Vulkan pré-compilado para Windows
     if sys.platform == "win32":
-        print("[Whisper TXT] Baixando binário universal whisper-cli (Vulkan para Windows)...")
-        zip_tmp = BIN_FOLDER / "whisper_vulkan.zip.tmp"
-        zip_path = BIN_FOLDER / "whisper_vulkan.zip"
-        try:
-            urllib.request.urlretrieve(VULKAN_RELEASE_URL, zip_tmp)
-            zip_tmp.replace(zip_path)
+        with tempfile.TemporaryDirectory(dir=BIN_FOLDER) as download_dir:
+            zip_path = Path(download_dir) / "whisper_vulkan.zip"
+            _download_file(VULKAN_RELEASE_URL, zip_path, on_progress)
             with zipfile.ZipFile(zip_path, "r") as zip_ref:
                 zip_ref.extractall(BIN_FOLDER)
-        finally:
-            if zip_tmp.exists():
-                zip_tmp.unlink()
-            if zip_path.exists():
-                zip_path.unlink()
 
         if cli_path.exists():
-            print("[Whisper TXT] Motor Vulkan instalado com sucesso em bin/.")
             return cli_path
 
     # Download automático para Linux
     if sys.platform.startswith("linux"):
-        print("[Whisper TXT] Baixando pacote universal whisper-cli para Linux...")
-        tar_tmp = BIN_FOLDER / "whisper_linux.tar.gz.tmp"
-        tar_path = BIN_FOLDER / "whisper_linux.tar.gz"
-        try:
-            req = urllib.request.Request(
-                LINUX_RELEASE_URL,
-                headers={"User-Agent": "whisper-txt/1.0"},
-            )
-            with urllib.request.urlopen(req) as resp, open(tar_tmp, "wb") as out_f:
-                shutil.copyfileobj(resp, out_f)
-            tar_tmp.replace(tar_path)
+        with tempfile.TemporaryDirectory(dir=BIN_FOLDER) as download_dir:
+            tar_path = Path(download_dir) / "whisper_linux.tar.gz"
+            _download_file(LINUX_RELEASE_URL, tar_path, on_progress)
+            extract_options = {"filter": "data"} if getattr(tarfile, "data_filter", None) else {}
             with tarfile.open(tar_path, "r:gz") as tar_ref:
                 for member in tar_ref.getmembers():
                     if member.isreg() or member.issym():
                         parts = Path(member.name).parts
                         member.name = parts[-1] if len(parts) > 1 else member.name
-                        tar_ref.extract(member, BIN_FOLDER)
-        except Exception as e:
-            print(f"[Whisper TXT] Aviso: download automático para Linux falhou ({e}).")
-        finally:
-            if tar_tmp.exists():
-                tar_tmp.unlink()
-            if tar_path.exists():
-                tar_path.unlink()
+                        tar_ref.extract(member, BIN_FOLDER, **extract_options)
 
         if cli_path.exists():
             os.chmod(cli_path, 0o755)
@@ -108,7 +139,6 @@ def get_whisper_cli() -> Path:
                     os.chmod(lib_file, 0o755)
                 except Exception:
                     pass
-            print("[Whisper TXT] Motor whisper-cli instalado com sucesso em bin/.")
             return cli_path
 
     raise FileNotFoundError(
@@ -119,7 +149,7 @@ def get_whisper_cli() -> Path:
     )
 
 
-def get_model_path(model_filename: str) -> Path:
+def get_model_path(model_filename: str, on_progress: DownloadProgress | None = None) -> Path:
     """
     Retorna o caminho do modelo GGUF/bin.
     Se não existir em models/, baixa automaticamente do repositório oficial da Hugging Face.
@@ -135,19 +165,7 @@ def get_model_path(model_filename: str) -> Path:
         # Se for nome customizado, tenta baixar diretamente do Hugging Face whisper.cpp
         url = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/{model_filename}"
 
-    print(f"\n[Whisper TXT] Baixando modelo {model_filename} do Hugging Face...")
-    print(f"Origem: {url}")
-    print(f"Destino: {model_path}")
-
-    tmp_path = model_path.with_suffix(f"{model_path.suffix}.tmp")
-    try:
-        urllib.request.urlretrieve(url, tmp_path)
-        tmp_path.replace(model_path)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
-
-    print(f"[Whisper TXT] Download concluído ({model_path.stat().st_size // (1024 * 1024)} MB).\n")
+    _download_file(url, model_path, on_progress)
     return model_path
 
 
