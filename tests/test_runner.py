@@ -52,6 +52,26 @@ class TestCoreRunner(unittest.TestCase):
             )
             mock_resolve.assert_called_once_with(input_file, track_index=2)
 
+    @patch("core.runner.resolve_audio_source")
+    @patch("core.runner.Transcriber")
+    def test_run_pipeline_converts_non_native_audio(self, mock_transcriber_cls, mock_resolve):
+        """Áudio .m4a não deve ir direto ao whisper-cli; passa por resolve_audio_source."""
+        mock_resolve.return_value = (Path("tmp.wav"), False)
+        mock_transcriber = MagicMock()
+        mock_transcriber_cls.return_value = mock_transcriber
+        mock_transcriber.transcribe.return_value = ([MagicMock()], MagicMock())
+        mock_transcriber.export_txt.return_value = Path("voz.txt")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            input_file = Path(tmp_dir) / "voz.m4a"
+            input_file.touch()
+
+            runner.run_pipeline(input_path=input_file, output_dir=Path(tmp_dir))
+
+            mock_resolve.assert_called_once_with(input_file, track_index=0)
+            used = mock_transcriber.transcribe.call_args.kwargs["audio_path"]
+            self.assertEqual(used, Path("tmp.wav"))
+
 
 if __name__ == "__main__":
     unittest.main()

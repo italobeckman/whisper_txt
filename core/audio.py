@@ -15,6 +15,8 @@ VIDEO_EXTENSIONS = {
 AUDIO_EXTENSIONS = {
     ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".wma", ".opus",
 }
+# Formatos que o whisper-cli consegue ler diretamente (miniaudio/dr_libs)
+WHISPER_NATIVE_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg"}
 
 
 def is_video_file(path: Path) -> bool:
@@ -32,6 +34,11 @@ def is_video_file(path: Path) -> bool:
 def is_audio_file(path: Path) -> bool:
     """Retorna True se o arquivo tiver extensão de áudio suportada."""
     return Path(path).suffix.lower() in AUDIO_EXTENSIONS
+
+
+def is_native_audio_file(path: Path) -> bool:
+    """Retorna True se o whisper-cli lê o arquivo diretamente (sem conversão)."""
+    return Path(path).suffix.lower() in WHISPER_NATIVE_EXTENSIONS
 
 
 def get_audio_tracks(video_path: Path, ffmpeg_path: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -139,16 +146,16 @@ def resolve_audio_source(
 ) -> Tuple[Path, bool]:
     """
     Garante que o arquivo de entrada seja um áudio válido para o Whisper.
-    - Se for um arquivo de áudio, retorna (input_path, False).
-    - Se for um arquivo de vídeo, extrai a trilha solicitada para um arquivo
+    - Se for um áudio em formato nativo do whisper-cli, retorna (input_path, False).
+    - Se for um vídeo ou áudio não nativo (m4a, aac, opus...), extrai/converte a trilha solicitada para um arquivo
       temporário WAV 16kHz e retorna (temp_audio_path, True).
     """
     input_path = Path(input_path)
 
-    if is_audio_file(input_path):
+    if is_native_audio_file(input_path):
         return input_path, False
 
-    if is_video_file(input_path):
+    if is_audio_file(input_path) or is_video_file(input_path):
         prefix = f"whisper_txt_{config.sanitize_filename(input_path.stem)}_t{track_index}_"
         temp_file = tempfile.NamedTemporaryFile(
             prefix=prefix,
