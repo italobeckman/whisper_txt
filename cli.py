@@ -63,6 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_transcribe.add_argument("--threads", type=int, default=None, help="Número de threads para processamento (padrão: 8)")
     p_transcribe.add_argument("-l", "--language", default="pt", help="Idioma das gravações (padrão: pt)")
     p_transcribe.add_argument("-t", "--track", type=int, default=0, help="Índice da trilha de áudio do vídeo (padrão: 0)")
+    p_transcribe.add_argument("--cpu", action="store_true", help="Usa somente CPU")
     p_transcribe.add_argument("--device", default=None, help="Dispositivo / GPU Vulkan (padrão: autodetectado)")
     p_transcribe.add_argument("--prompt", default=None, help="Prompt de contexto / termos técnicos para o Whisper")
     p_transcribe.add_argument("-f", "--overwrite", action="store_true", help="Sobrescreve transcrições existentes")
@@ -82,6 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("-o", "--output", default=None, help="Diretório base de saída")
     p_run.add_argument("-q", "--quality", choices=["fast", "balanced", "max"], default="fast", help="Qualidade da transcrição (padrão: fast)")
     p_run.add_argument("-t", "--track", type=int, default=0, help="Índice da trilha de áudio do vídeo (padrão: 0)")
+    p_run.add_argument("--cpu", action="store_true", help="Usa somente CPU")
     p_run.add_argument("--keep-audio", action="store_true", help="Mantém o arquivo de áudio WAV gerado")
     p_run.add_argument("--prompt", default=None, help="Prompt de termos para o Whisper")
     p_run.add_argument("-l", "--language", default="pt", help="Idioma (padrão: pt)")
@@ -109,15 +111,16 @@ def handle_transcribe(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     print(f"\n[Transcrição] Encontrados {len(files)} vídeo(s).")
-    print(f"Motor: whisper.cpp (Vulkan) | Dispositivo: {config.DEVICE}")
     print(f"Preset: {args.quality} | Idioma: {args.language} | Saída: {args.output or 'mesma pasta'}\n")
 
     transcriber = Transcriber(
         model_name=args.model,
         device=args.device,
+        cpu=args.cpu,
         quality=args.quality,
         threads=getattr(args, "threads", None),
     )
+    print(f"Backend: {transcriber.backend}")
 
     for i, file_path in enumerate(files, 1):
         print(f"[{i}/{len(files)}] {file_path.name}")
@@ -225,7 +228,8 @@ def handle_run(args: argparse.Namespace) -> None:
     print(f"\n[Pipeline de Transcrição] Encontrados {len(files)} vídeo(s).")
     print(f"Qualidade: {args.quality} | Idioma: {args.language}\n")
 
-    transcriber_inst = Transcriber(quality=args.quality)
+    transcriber_inst = Transcriber(quality=args.quality, cpu=args.cpu)
+    print(f"Backend: {transcriber_inst.backend}")
 
     for i, media_file in enumerate(files, 1):
         print(f"[{i}/{len(files)}] {media_file.name}")

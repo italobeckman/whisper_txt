@@ -69,7 +69,7 @@ class WhisperTxtApp(App):
 
     CSS_PATH = "styles.tcss"
     TITLE = "Whisper TXT"
-    SUB_TITLE = f"Dispositivo: {config.DEVICE.upper()}"
+    SUB_TITLE = ""
 
     BINDINGS = [
         Binding("q", "quit", "Sair"),
@@ -79,6 +79,7 @@ class WhisperTxtApp(App):
     ]
 
     selected_file: reactive[Optional[Path]] = reactive(None)
+    selected_cpu: reactive[bool] = reactive(False)
     selected_quality: reactive[str] = reactive("fast")
     selected_language: reactive[str] = reactive("pt")
     selected_track: reactive[int] = reactive(0)
@@ -123,6 +124,12 @@ class WhisperTxtApp(App):
                             yield RadioButton("Max (turbo fp16, beam 5)", id="max")
 
                     with Horizontal(classes="config-row"):
+                        yield Label("Backend:", classes="row-label")
+                        with RadioSet(id="backend-radios"):
+                            yield RadioButton("Autom?tico", id="backend-auto", value=True)
+                            yield RadioButton("CPU", id="backend-cpu")
+
+                    with Horizontal(classes="config-row"):
                         yield Label("Idioma:", classes="row-label")
                         with RadioSet(id="radio-language"):
                             yield RadioButton("Português (pt)", id="lang-pt", value=True)
@@ -164,6 +171,7 @@ class WhisperTxtApp(App):
 
     def on_mount(self) -> None:
         """Inicializa estado e pré-seleciona arquivo caso fornecido via argumento."""
+        self.sub_title = f"Backend: {config.backend_name()}"
         if self.preselected_file and self.preselected_file.is_file():
             self.select_media_file(self.preselected_file)
 
@@ -227,6 +235,9 @@ class WhisperTxtApp(App):
         """Chamado quando o preset de qualidade ou o idioma é alterado."""
         if event.radio_set.id == "quality-radios" and event.pressed:
             self.selected_quality = event.pressed.id or "fast"
+        elif event.radio_set.id == "backend-radios" and event.pressed:
+            self.selected_cpu = event.pressed.id == "backend-cpu"
+            self.sub_title = f"Backend: {config.backend_name(cpu=self.selected_cpu)}"
         elif event.radio_set.id == "radio-language" and event.pressed:
             lang_id = event.pressed.id or "lang-pt"
             self.selected_language = lang_id.replace("lang-", "")
@@ -289,6 +300,7 @@ class WhisperTxtApp(App):
             self.selected_language,
             self.selected_track,
             prompt_val,
+            self.selected_cpu,
         )
 
     @work(thread=True)
@@ -299,6 +311,7 @@ class WhisperTxtApp(App):
         language: str,
         track_index: int,
         prompt: Optional[str],
+        cpu: bool,
     ) -> None:
         """Executa a extração e a transcrição em uma thread em background."""
         temp_audio = None
@@ -315,7 +328,7 @@ class WhisperTxtApp(App):
             temp_audio = audio_source if is_temp else None
 
             self.call_from_thread(lbl_status.update, f"Status: Carregando modelo ({quality})...")
-            transcriber = Transcriber(quality=quality)
+            transcriber = Transcriber(quality=quality, cpu=cpu, quiet=True)
 
             def segment_callback(seg: Any) -> None:
                 ts = format_seconds(seg.start)

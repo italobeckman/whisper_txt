@@ -119,6 +119,7 @@ class TestWhisperTxtTUI(unittest.IsolatedAsyncioTestCase):
                 "es",
                 1,
                 None,
+                False,
             )
 
     @patch.object(WhisperTxtApp, "start_transcription")

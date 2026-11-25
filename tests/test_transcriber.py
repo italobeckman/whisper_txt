@@ -80,11 +80,12 @@ class TestCoreTranscriber(unittest.TestCase):
             self.assertEqual(txt_file.name, "Aula 1.1 - Redes.txt")
             self.assertTrue(txt_file.exists())
 
+    @patch("config.backend_name", return_value="CPU")
     @patch("config.get_model_path")
     @patch("config.get_whisper_cli")
     @patch("subprocess.Popen")
     def test_transcribe_invokes_callbacks_and_parses_stream(
-        self, mock_popen, mock_get_cli, mock_get_model
+        self, mock_popen, mock_get_cli, mock_get_model, mock_backend
     ):
         mock_get_cli.return_value = Path("bin/whisper-cli.exe")
         mock_get_model.return_value = Path("models/ggml-large-v3-turbo-q5_0.bin")
