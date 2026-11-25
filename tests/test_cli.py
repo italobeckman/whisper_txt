@@ -1,5 +1,10 @@
+import tempfile
 import unittest
-from cli import build_parser
+from pathlib import Path
+from unittest.mock import patch
+
+from cli import build_parser, collect_files
+from core.audio import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 
 
 class TestCLIParser(unittest.TestCase):
@@ -56,11 +61,6 @@ class TestCLIParser(unittest.TestCase):
         self.assertEqual(args.command, "tui")
 
     def test_collect_files_includes_extensionless_in_dir(self):
-        import tempfile
-        from pathlib import Path
-        from unittest.mock import patch
-        from cli import collect_files
-        from core.audio import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
         with tempfile.TemporaryDirectory() as td:
             p = Path(td)
             vid = p / "aula_sem_extensao"
@@ -71,6 +71,21 @@ class TestCLIParser(unittest.TestCase):
                 files = collect_files(p, VIDEO_EXTENSIONS | AUDIO_EXTENSIONS)
                 self.assertEqual(len(files), 1)
                 self.assertEqual(files[0].name, "aula_sem_extensao")
+
+
+class TestCollectFilesNonMedia(unittest.TestCase):
+    def test_non_media_file_with_extension_returns_empty(self):
+        with tempfile.TemporaryDirectory() as td:
+            note = Path(td) / "notes.txt"
+            note.write_text("nota", encoding="utf-8")
+            self.assertEqual(collect_files(note, VIDEO_EXTENSIONS | AUDIO_EXTENSIONS), [])
+
+    @patch("core.audio.get_audio_tracks", return_value=[])
+    def test_non_media_extensionless_file_returns_empty(self, _mock_tracks):
+        with tempfile.TemporaryDirectory() as td:
+            note = Path(td) / "notes"
+            note.write_text("nota", encoding="utf-8")
+            self.assertEqual(collect_files(note, VIDEO_EXTENSIONS | AUDIO_EXTENSIONS), [])
 
 
 if __name__ == "__main__":
