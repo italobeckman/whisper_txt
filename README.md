@@ -193,3 +193,9 @@ whisper-txt/
 ```bash
 uv run python -m unittest discover tests
 ```
+
+---
+
+## Contribuindo
+
+O desenvolvimento segue o fluxo descrito em [`docs/WORKFLOW_IA.md`](docs/WORKFLOW_IA.md): uma issue por vez, branch a partir de `dev`, commits convencionais com o número da issue e PR para `dev`, com revisão de outro dev.
