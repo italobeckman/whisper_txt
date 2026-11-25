@@ -16,9 +16,11 @@ class TestWhisperTxtTUI(unittest.IsolatedAsyncioTestCase):
             (root / "notes.txt").write_text("nota", encoding="utf-8")
 
             app = WhisperTxtApp(initial_path=root)
-            async with app.run_test() as pilot:
+            async with app.run_test():
                 tree = app.query_one("#file-tree", DirectoryTree)
-                await pilot.pause()
+                # O DirectoryTree popula os filhos em workers; reload() é
+                # aguardável e garante a árvore carregada antes da asserção.
+                await tree.reload()
                 names = {node.data.path.name for node in tree.root.children}
                 self.assertIn("sub", names)
                 self.assertIn("a.mp3", names)
