@@ -1,6 +1,5 @@
 """CLI entrypoint for whisper-txt - Transcrição de Vídeos para TXT."""
 import argparse
-import logging
 import sys
 import time
 from pathlib import Path
@@ -313,8 +312,6 @@ def main():
 
     handler = handlers.get(args.command)
     if handler:
-        if args.command != "tui":
-            logging.basicConfig(format="%(message)s")
         handler(args)
     else:
         parser.print_help()
