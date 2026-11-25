@@ -54,6 +54,40 @@ Na primeira execução, o binário universal e o modelo padrão `ggml-large-v3-t
 
 ---
 
+## Docker
+
+O `Dockerfile` fixa a versão do `uv` e instala as dependências a partir do `uv.lock` (`uv sync --frozen`). O build é reprodutível e falha se o lock divergir do `pyproject.toml`.
+
+```bash
+# Build da imagem
+docker build -t whisper-txt .
+
+# Ajuda da CLI
+docker run --rm whisper-txt --help
+```
+
+### Volumes persistentes
+
+O binário `whisper-cli` e os modelos GGML são baixados sob demanda em tempo de execução. Monte volumes em `/app/models` e `/app/bin` para reaproveitá-los entre containers e não baixar tudo de novo a cada execução:
+
+```bash
+docker volume create whisper-models
+docker volume create whisper-bin
+
+docker run --rm -it \
+  -v "$PWD:/data" \
+  -v whisper-models:/app/models \
+  -v whisper-bin:/app/bin \
+  whisper-txt transcribe -i "/data/aula.mp4"
+```
+
+- `/app/models`: cache dos modelos GGML (ex.: `ggml-large-v3-turbo-q5_0.bin`).
+- `/app/bin`: binário `whisper-cli` e bibliotecas compartilhadas do `whisper.cpp`.
+
+> **GPU Vulkan:** a aceleração depende de o container receber acesso ao dispositivo do host (por exemplo `--device /dev/dri` no Linux) e dos drivers Vulkan instalados.
+
+---
+
 ## Como Usar
 
 ### 1. Interface Visual no Terminal (TUI)
