@@ -9,6 +9,7 @@ import config
 from core.audio import (
     AUDIO_EXTENSIONS,
     VIDEO_EXTENSIONS,
+    FFmpegError,
     cleanup_temp_audio,
     extract_audio,
     get_audio_tracks,
@@ -200,12 +201,19 @@ def handle_extract(args: argparse.Namespace) -> None:
             print("    -> Já existe, pulando.")
             continue
 
-        success = extract_audio(video, audio_out, overwrite=args.overwrite, track_index=args.track)
-        if success:
+        try:
+            extract_audio(
+                video,
+                audio_out,
+                overwrite=args.overwrite,
+                track_index=args.track,
+                raise_on_error=True,
+            )
+        except FFmpegError as e:
+            print(f"    -> [ERRO] Falha ao extrair áudio de {video.name}: {e}", file=sys.stderr)
+        else:
             size_mb = audio_out.stat().st_size / (1024 * 1024) if audio_out.exists() else 0.0
             print(f"    -> Extraído com sucesso ({size_mb:.1f} MB)")
-        else:
-            print(f"    -> [ERRO] Falha ao extrair áudio de {video.name}")
 
     print("\nExtração concluída.")
 

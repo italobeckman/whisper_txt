@@ -1,4 +1,5 @@
 """Audio extraction and format handling utilities using FFmpeg."""
+import logging
 import re
 import subprocess
 import sys
@@ -7,6 +8,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import config
+
+logger = logging.getLogger(__name__)
+
+# Quantidade de linhas do stderr do FFmpeg preservada nas mensagens de erro.
+FFMPEG_ERROR_TAIL_LINES = 5
 
 VIDEO_EXTENSIONS = {
     ".mp4", ".mkv", ".mov", ".webm", ".avi", ".flv", ".wmv",
@@ -88,16 +94,34 @@ def get_audio_tracks(video_path: Path, ffmpeg_path: Optional[str] = None) -> Lis
     return tracks
 
 
+class FFmpegError(RuntimeError):
+    """Falha ao extrair áudio com o FFmpeg, com a causa reportada pelo processo."""
+
+
+def _format_ffmpeg_error(stderr: Optional[str], returncode: int) -> str:
+    """Resume a falha do FFmpeg preservando as últimas linhas do stderr."""
+    lines = [line.strip() for line in (stderr or "").splitlines() if line.strip()]
+    if not lines:
+        return f"FFmpeg retornou código {returncode}"
+    tail = "\n".join(lines[-FFMPEG_ERROR_TAIL_LINES:])
+    return f"FFmpeg retornou código {returncode}:\n{tail}"
+
+
 def extract_audio(
     video_path: Path,
     audio_path: Path,
     ffmpeg_path: Optional[str] = None,
     overwrite: bool = False,
     track_index: int = 0,
+    raise_on_error: bool = False,
 ) -> bool:
     """
     Extrai a trilha de áudio especificada de um vídeo para WAV mono 16kHz PCM.
     Se o arquivo de saída já existir e overwrite for False, pula a extração.
+
+    Retorna False em caso de falha. Com ``raise_on_error=True``, levanta
+    :class:`FFmpegError` carregando a causa reportada pelo FFmpeg, para que
+    chamadores possam propagá-la sem escrever no terminal.
     """
     video_path = Path(video_path)
     audio_path = Path(audio_path)
@@ -129,12 +153,16 @@ def extract_audio(
             creationflags=creationflags,
         )
         if result.returncode != 0:
-            err_msg = result.stderr.strip() if result.stderr else f"Código de saída {result.returncode}"
-            print(f"[ERRO FFmpeg] {err_msg}", file=sys.stderr)
+            error = _format_ffmpeg_error(result.stderr, result.returncode)
+            if raise_on_error:
+                raise FFmpegError(error)
             return False
         return True
+    except FFmpegError:
+        raise
     except Exception as e:
-        print(f"[ERRO] Falha ao executar FFmpeg: {e}", file=sys.stderr)
+        if raise_on_error:
+            raise FFmpegError(f"Falha ao executar FFmpeg: {e}") from e
         return False
 
 
@@ -166,16 +194,18 @@ def resolve_audio_source(
         temp_audio_path = Path(temp_file.name)
         temp_file.close()
 
-        success = extract_audio(
-            input_path,
-            temp_audio_path,
-            ffmpeg_path=ffmpeg_path,
-            overwrite=True,
-            track_index=track_index,
-        )
-        if not success:
+        try:
+            extract_audio(
+                input_path,
+                temp_audio_path,
+                ffmpeg_path=ffmpeg_path,
+                overwrite=True,
+                track_index=track_index,
+                raise_on_error=True,
+            )
+        except FFmpegError as e:
             cleanup_temp_audio(temp_audio_path)
-            raise RuntimeError(f"Falha ao extrair áudio de {input_path}")
+            raise RuntimeError(f"Falha ao extrair áudio de {input_path}: {e}") from e
         return temp_audio_path, True
 
     raise ValueError(f"Formato não suportado para transcrição: {input_path.suffix}")
@@ -190,4 +220,4 @@ def cleanup_temp_audio(audio_path: Optional[Path]) -> None:
         if path.exists():
             path.unlink()
     except Exception as e:
-        print(f"[AVISO] Não foi possível remover arquivo temporário {audio_path}: {e}", file=sys.stderr)
+        logger.warning("Não foi possível remover arquivo temporário %s: %s", audio_path, e)
