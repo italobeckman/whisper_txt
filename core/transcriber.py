@@ -96,6 +96,7 @@ class Transcriber:
         download_root: Optional[str] = None,
         quality: str = "fast",
         threads: Optional[int] = None,
+        cpu: bool = False,
         **kwargs: Any,
     ):
         preset = PRESETS.get(quality.lower(), PRESETS[config.DEFAULT_PRESET])
@@ -103,7 +104,8 @@ class Transcriber:
         default_model = preset["model"]
         self.model_filename = normalize_model_filename(model_name, default_model)
         self.beam_size = preset.get("beam_size", 1)
-        self.device = device or config.DEVICE
+        self.device = device
+        self.backend = config.backend_name(device, cpu)
         self.threads = threads or min(8, max(1, (os.cpu_count() or 4)))
         self.download_root = download_root or config.MODEL_FOLDER
 
@@ -136,8 +138,10 @@ class Transcriber:
             "-bo", str(beam),
             "-pp",
         ]
-        if self.device and str(self.device).isdigit():
-            cmd.extend(["-dev", str(self.device)])
+        if self.backend == "CPU":
+            cmd.append("-ng")
+        elif self.device is not None and str(self.device).isdigit():
+            cmd.extend(["--device", str(self.device)])
         if initial_prompt:
             cmd.extend(["--prompt", initial_prompt])
 
