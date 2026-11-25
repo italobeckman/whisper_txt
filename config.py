@@ -123,12 +123,13 @@ def get_whisper_cli(on_progress: DownloadProgress | None = None) -> Path:
         with tempfile.TemporaryDirectory(dir=BIN_FOLDER) as download_dir:
             tar_path = Path(download_dir) / "whisper_linux.tar.gz"
             _download_file(LINUX_RELEASE_URL, tar_path, on_progress)
+            extract_options = {"filter": "data"} if getattr(tarfile, "data_filter", None) else {}
             with tarfile.open(tar_path, "r:gz") as tar_ref:
                 for member in tar_ref.getmembers():
                     if member.isreg() or member.issym():
                         parts = Path(member.name).parts
                         member.name = parts[-1] if len(parts) > 1 else member.name
-                        tar_ref.extract(member, BIN_FOLDER)
+                        tar_ref.extract(member, BIN_FOLDER, **extract_options)
 
         if cli_path.exists():
             os.chmod(cli_path, 0o755)
